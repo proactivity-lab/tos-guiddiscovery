@@ -1,6 +1,8 @@
-configuration TosGuidDiscoveryC {
-
-}
+/**
+ * @author Raido Pahtma
+ * @license MIT
+*/
+configuration TosGuidDiscoveryC { }
 implementation {
 
 	#include "TosGuidDiscovery.h"
@@ -16,6 +18,6 @@ implementation {
 	TosGuidDiscoveryP.Receive -> AMReceiverC;
 
 	components LocalIeeeEui64C;
-    TosGuidDiscoveryP.LocalIeeeEui64 -> LocalIeeeEui64C;
+	TosGuidDiscoveryP.LocalIeeeEui64 -> LocalIeeeEui64C;
 
 }
