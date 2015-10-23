@@ -17,6 +17,9 @@ implementation {
 	components new AMReceiverC(AMID_GUIDDISCOVERY);
 	TosGuidDiscoveryP.Receive -> AMReceiverC;
 
+	components GlobalPoolC;
+	TosGuidDiscoveryP.MessagePool -> GlobalPoolC;
+
 	components LocalIeeeEui64C;
 	TosGuidDiscoveryP.LocalIeeeEui64 -> LocalIeeeEui64C;
 

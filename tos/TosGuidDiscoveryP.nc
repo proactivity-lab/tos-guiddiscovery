@@ -8,6 +8,7 @@ generic module TosGuidDiscoveryP() {
 		interface Packet;
 		interface AMPacket;
 		interface AMSend;
+		interface Pool<message_t> as MessagePool;
 
 		interface LocalIeeeEui64;
 	}
@@ -15,44 +16,26 @@ generic module TosGuidDiscoveryP() {
 implementation {
 
 	#define __MODUUL__ "gdds"
-	#define __LOG_LEVEL__ ( LOG_LEVEL_GuidDiscovery & BASE_LOG_LEVEL )
+	#define __LOG_LEVEL__ ( LOG_LEVEL_TosGuidDiscovery & BASE_LOG_LEVEL )
 	#include "log.h"
 
 	#include "TosGuidDiscovery.h"
 
 	bool m_sending = FALSE;
 
-	message_t m_msg;
-
-	error_t createResponse(message_t* msg, am_addr_t destination)
+	uint8_t createResponse(message_t* msg)
 	{
-		GuidDiscovery_t* resp = call AMSend.getPayload(msg, sizeof(GuidDiscovery_t));
+		GuidDiscovery_t* resp = (GuidDiscovery_t*)call AMSend.getPayload(msg, sizeof(GuidDiscovery_t));
 		if(resp != NULL)
 		{
 			ieee_eui64_t id = call LocalIeeeEui64.getId();
 			resp->header = GUIDDISCOVERY_RESPONSE;
 			memcpy(resp->guid, id.data, IEEE_EUI64_LENGTH);
-			call Packet.setPayloadLength(msg, sizeof(GuidDiscovery_t));
-			call AMPacket.setDestination(msg, destination);
-			return SUCCESS;
+			return sizeof(GuidDiscovery_t);
 		}
 		else err3("gPl(%u)", sizeof(GuidDiscovery_t));
 
-		return FAIL;
-	}
-
-	task void send()
-	{
-		if(m_sending == FALSE)
-		{
-			error_t err = call AMSend.send(call AMPacket.destination(&m_msg), &m_msg, call Packet.payloadLength(&m_msg));
-			if(err == SUCCESS)
-			{
-				debug1("snd %p", &m_msg);
-				m_sending = TRUE;
-			}
-			else warn1("snd %p %u", &m_msg, err);
-		}
+		return 0;
 	}
 
 	bool isBroadcastGuid(uint8_t guid[IEEE_EUI64_LENGTH])
@@ -81,21 +64,37 @@ implementation {
 			GuidDiscovery_t* p = (GuidDiscovery_t*)payload;
 			if(p->header == GUIDDISCOVERY_REQUEST)
 			{
-				if(m_sending == FALSE)
+				// Destination broadcast and specific GUID
+				// Destination unicast and broadcast GUID
+				// Destination broadcast and broadcast GUID
+				if(isBroadcastGuid((uint8_t*)(p->guid)) || isMyGuid((uint8_t*)(p->guid)))
 				{
-					// Destination broadcast and specific GUID
-					// Destination unicast and broadcast GUID
-					// Destination broadcast and broadcast GUID
-					if(isBroadcastGuid((uint8_t*)(p->guid)) || isMyGuid((uint8_t*)(p->guid)))
+					if(m_sending == FALSE)
 					{
-						if(createResponse(&m_msg, call AMPacket.source(msg)) == SUCCESS)
+						message_t* response = call MessagePool.get();
+						if(response != NULL)
 						{
-							post send();
+							uint8_t length = createResponse(response);
+							if(length > 0)
+							{
+								error_t err = call AMSend.send(call AMPacket.source(msg), response, length);
+								if(err == SUCCESS)
+								{
+									debug1("snd %p", response);
+									m_sending = TRUE;
+									return msg;
+								}
+								else warn1("snd %p %u", response, err);
+							}
+							else warn1("rsp");
+
+							call MessagePool.put(response);
 						}
+						else warn1("pool");
 					}
-					else debugb1("!4me %04X", p->guid, IEEE_EUI64_LENGTH, call AMPacket.destination(msg));
+					else warn1("bsy");
 				}
-				else warn1("bsy");
+				else debugb1("!4me %04X", p->guid, IEEE_EUI64_LENGTH, call AMPacket.destination(msg));
 			}
 			else if(p->header == GUIDDISCOVERY_RESPONSE)
 			{
@@ -111,6 +110,7 @@ implementation {
 	event void AMSend.sendDone(message_t* msg, error_t error)
 	{
 		logger(error == SUCCESS ? LOG_DEBUG1 : LOG_WARN1, "snt(%p, %u)", msg, error);
+		call MessagePool.put(msg);
 		m_sending = FALSE;
 	}
 
