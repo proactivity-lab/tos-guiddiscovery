@@ -3,6 +3,9 @@
  * @license MIT
 */
 generic module TosGuidDiscoveryP() {
+	provides {
+		interface GuidDiscovery;
+	}
 	uses {
 		interface Receive;
 		interface Packet;
