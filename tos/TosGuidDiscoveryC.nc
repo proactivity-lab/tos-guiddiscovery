@@ -2,12 +2,15 @@
  * @author Raido Pahtma
  * @license MIT
 */
-configuration TosGuidDiscoveryC { }
+configuration TosGuidDiscoveryC {
+	provides interface GuidDiscovery;
+}
 implementation {
 
 	#include "TosGuidDiscovery.h"
 
 	components new TosGuidDiscoveryP();
+	GuidDiscovery = TosGuidDiscoveryP.GuidDiscovery;
 
 	components new AMSenderC(AMID_GUIDDISCOVERY);
 	TosGuidDiscoveryP.AMSend -> AMSenderC;

@@ -3,12 +3,19 @@
  * @license MIT
 */
 #include "logger.h"
-configuration GuidNodeC {
-
-}
+configuration NodeC { }
 implementation {
 
+	components BootInfoC;
+	components MCUSRInfoC;
+
+	components new TimerWatchdogC(5000);
+
 	components TosGuidDiscoveryC;
+
+#ifdef GUID_DISCOVERY_PERIOD_MS
+	components new GuidDiscovererC(GUID_DISCOVERY_PERIOD_MS);
+#endif // GUID_DISCOVERY_PERIOD_MS
 
 	components MainC;
 

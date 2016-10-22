@@ -1,21 +1,23 @@
-"""GUID discovery application for TinyOS devices."""
+"""guidapp.py: GUID discovery application for TinyOS devices."""
 
-__author__ = "Raido Pahtma"
-__license__ = "MIT"
-
-from twisted.internet import reactor
-
-import struct
+from queue import Queue
 import datetime
+import threading
+import signal
+import struct
 import time
 
 import argparse
 from argconfparse.argconfparse import ConfigArgumentParser, arg_hex2int, arg_check_hex16str
 
-from monkey import Monkey
+from moteconnection.connection import Connection
+from moteconnection.message import MessageDispatcher, Message, AM_BROADCAST_ADDR
 
 import logging
 log = logging.getLogger(__name__)
+
+__author__ = "Raido Pahtma"
+__license__ = "MIT"
 
 
 AMID_GUIDDISCOVERY = 0xFC
@@ -77,16 +79,23 @@ class DiscoPacket(object):
 
 class GUIDDisco(object):
 
-    def __init__(self, connection, initargs):
-        self._dest = initargs.dest
-        self._guid = initargs.guid
-        self._response = initargs.response
+    def __init__(self, connection, args):
+        self._dest = args.dest
+        self._guid = args.guid
+        self._response = args.response
 
+        self._incoming = Queue()
+        self._dispatcher = MessageDispatcher(args.address, args.group)
+        self._dispatcher.register_receiver(AMID_GUIDDISCOVERY, self._incoming)
+
+        assert isinstance(connection, Connection)
         self._connection = connection
-        self._connection.add_receive_callback(self.receive, AMID_GUIDDISCOVERY)
+        self._connection.register_dispatcher(self._dispatcher)
 
-    def start(self):
-        reactor.callLater(1, self._send)
+    def run(self):
+        while not self._incoming.empty():
+            self.receive(self._incoming.get())
+        self._send()
 
     @staticmethod
     def _ts_now():
@@ -102,13 +111,13 @@ class GUIDDisco(object):
         if self._response:
             p.header = DiscoPacket.GUIDDISCOVERY_RESPONSE
 
-        packet = self._connection.new_packet()
-        packet.dest = self._dest
-        packet.src = self._connection.address
+        packet = Message()
+        packet.destination = self._dest
+        packet.source = self._dispatcher.address
         packet.type = AMID_GUIDDISCOVERY
         packet.payload = p.serialize()
 
-        print("{} disco {:04X}->{:04X} {:s}".format(self._ts_now(), self._connection.address, self._dest, p))
+        print("{} disco {:04X}->{:04X} {:s}".format(self._ts_now(), self._dispatcher.address, self._dest, p))
 
         self._connection.send(packet)
 
@@ -117,41 +126,62 @@ class GUIDDisco(object):
             p = DiscoPacket()
             p.deserialize(packet.payload)
 
-            printgreen("{} reply {:04X}->{:04X} {:s}".format(self._ts_now(), packet.src, packet.dest, p))
+            printgreen("{} reply {:04X}->{:04X} {:s}".format(self._ts_now(), packet.source, packet.destination, p))
 
         except ValueError as e:
-            printred("{} error {:04X}->{:04X} {}".format(self._ts_now(), packet.src, packet.dest, e.message))
+            printred("{} error {:04X}->{:04X} {}".format(self._ts_now(), packet.source, packet.destination, e.message))
 
 
-if __name__ == '__main__':
+def main():
+    parser = ConfigArgumentParser("TosPingPong", description="Application arguments",
+                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser = ConfigArgumentParser("TosPingPong", description="Application arguments", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--dest", default=AM_BROADCAST_ADDR, type=arg_hex2int,
+                        help="Discover GUID of destination address")
+    parser.add_argument("--guid", default="FFFFFFFFFFFFFFFF", type=arg_check_hex16str,
+                        help="Discover address of GUID")
 
-    parser.add_argument("--dest", default=0xFFFF, type=arg_hex2int, help="Discover GUID of destination address")
-    parser.add_argument("--guid", default="FFFFFFFFFFFFFFFF", type=arg_check_hex16str, help="Discovery address of GUID")
-
-    parser.add_argument("--connection", default="sf@localhost:9001")
+    parser.add_argument("--connection", default="sf@localhost:9002")
     parser.add_argument("--address", default=0xFFFE, type=arg_hex2int, help="Local address")
+    parser.add_argument("--group", default=0x22, type=arg_hex2int, help="Local group")
 
-    parser.add_argument("--response", action="store_true", default=False, help="Send a response packet instead of a request")
+    parser.add_argument("--response", action="store_true", default=False,
+                        help="Send a response packet instead of a request")
 
     parser.add_argument("--debug", action="store_true", default=False)
 
     args = parser.parse_args()
 
     if args.debug:
-        import simplelogging.logsetup
-        simplelogging.logsetup.setup_console()
+        # todo setup moteconnection logging
+        pass
 
-    con = Monkey(args.connection, args.address, callback_reactor=reactor)
+    interrupted = threading.Event()
+
+    def kbi_handler(sig, frm):
+        del sig, frm
+        interrupted.set()
+
+    signal.signal(signal.SIGINT, kbi_handler)
+
+    con = Connection()
+    con.connect(args.connection, reconnect=5.0)
+
     disco = GUIDDisco(con, args)
+    # disco.start()
 
-    con.open()
-    disco.start()
+    time.sleep(1)
+    while not interrupted.is_set():
+        disco.run()
+        time.sleep(1)
 
-    # Run the system
-    reactor.run()
+    # disco.join()
 
-    con.close()
+    con.disconnect()
+    con.join()
 
     print("done")
+
+
+if __name__ == '__main__':
+    main()
