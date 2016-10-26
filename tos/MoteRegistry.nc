@@ -19,8 +19,9 @@ interface MoteRegistry {
 	command local_mote_id_t getMote(ieee_eui64_t* guid, am_addr_t addr);
 
 	// Register link for mote, get an ID assignment.
+	// Set addr to AM_BROADCAST_ADDR, if it is not known.
 	// Returns < 0 if unsuccessful.
-	command local_mote_id_t registerMote(ieee_eui64_t* guid);
+	command local_mote_id_t registerMote(ieee_eui64_t* guid, am_addr_t addr);
 
 	// deregister mote link, allow mote info to be garbage-collected.
 	command void deregisterMote(local_mote_id_t mote);
