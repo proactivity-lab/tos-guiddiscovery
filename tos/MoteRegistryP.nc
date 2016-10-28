@@ -71,7 +71,7 @@ implementation {
 			debugb1("dsc", m_motes[discover].guid.data, IEEE_EUI64_LENGTH);
 			if(call GuidDiscovery.discoverAddress(&(m_motes[discover].guid)) == SUCCESS) {
 				m_motes[discover].contact = call LocalTimeSecond.get();
-				logState(i);
+				logState(discover);
 			}
 			else warn1("bsy");
 			call Timer.startOneShot(5*1000UL);
