@@ -111,14 +111,14 @@ implementation {
 	}
 
 	command am_addr_t MoteRegistry.getAddr(local_mote_id_t mote) {
-		if((mote >= 0) && (mote <= registry_size)) {
+		if((0 <= mote) && (mote <= registry_size)) {
 			return m_motes[mote].addr;
 		}
 		return 0;
 	}
 
 	command ieee_eui64_t* MoteRegistry.getGuid(ieee_eui64_t* guid, local_mote_id_t mote) {
-		if((mote >= 0) && (mote <= registry_size)) {
+		if((0 <= mote) && (mote <= registry_size)) {
 			if(memcmp(m_motes[mote].guid.data, m_null, IEEE_EUI64_LENGTH) != 0) {
 				memcpy(guid->data, m_motes[mote].guid.data, IEEE_EUI64_LENGTH);
 				return guid;
@@ -128,7 +128,7 @@ implementation {
 	}
 
 	command uint8_t* MoteRegistry.getGuidBuffer(local_mote_id_t mote) {
-		if((mote >= 0) && (mote <= registry_size)) {
+		if((0 <= mote) && (mote <= registry_size)) {
 			return m_motes[mote].guid.data;
 		}
 		return m_null;
@@ -190,7 +190,7 @@ implementation {
 	}
 
 	command void MoteRegistry.deregisterMote(local_mote_id_t mote) {
-		if((mote >= 0) && (mote <= registry_size)) {
+		if((0 <= mote) && (mote <= registry_size)) {
 			if(m_motes[mote].count > 0) {
 				m_motes[mote].count--;
 			}
