@@ -68,12 +68,12 @@ implementation {
 							uint8_t length = createResponse(response);
 							if(length > 0) {
 								error_t err = call AMSend.send(call AMPacket.source(msg), response, length);
+								logger(err == SUCCESS ? LOG_DEBUG1: LOG_WARN1, "snd(%04X, %p, %u)=%u",
+								       call AMPacket.source(msg), response, length, err);
 								if(err == SUCCESS) {
-									debug1("snd %p", response);
 									m_sending = TRUE;
 									return msg;
 								}
-								else warn1("snd %p %u", response, err);
 							}
 							else warn1("rsp");
 
@@ -83,7 +83,7 @@ implementation {
 					}
 					else warn1("bsy");
 				}
-				else debugb1("!4me %04X", p->guid, IEEE_EUI64_LENGTH, call AMPacket.destination(msg));
+				else debugb1("!4me %04X->%04X", p->guid, IEEE_EUI64_LENGTH, call AMPacket.source(msg), call AMPacket.destination(msg));
 			}
 			else if(p->header == GUIDDISCOVERY_RESPONSE) {
 				ieee_eui64_t guid;
